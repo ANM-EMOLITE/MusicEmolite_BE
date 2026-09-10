@@ -12,6 +12,9 @@ namespace MS_Application.Services.Interfaces
 
         Task<BaseResponse<BankUserResponseDto>> GetBankUser(long userId);
 
+        // Public - returns the site admin's bank account(s), for showing a donation QR on the public site.
+        Task<BaseResponse<List<BankUserResponseDto>>> GetAdminBankUsers();
+
         Task<BaseResponse<BankUserResponseDto>> CreateBankUser(long userId, string refCode, BankUserRequestDto dto);
 
         Task<BaseResponse<BankUserResponseDto>> UpdateBankUser(long userId, long id, BankUserRequestDto dto);

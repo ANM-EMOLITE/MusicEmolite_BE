@@ -430,6 +430,47 @@ namespace MS_Application.Services
             return result.Success(string.Format(Messages.Action.GetSuccess, "bank"));
         }
 
+        public async Task<BaseResponse<List<BankUserResponseDto>>> GetAdminBankUsers()
+        {
+            var result = new BaseResponse<List<BankUserResponseDto>>();
+
+            var adminProfileIds = await _crmUnitOfWork
+                .GetRepositoryReadOnlyAsync<CrmUser>()
+                .QueryAll()
+                .Where(x => x.UserType == (short)MS_Domain.Enums.UserType.ADMIN)
+                .Join(
+                    _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserProfile>().QueryAll(),
+                    user => user.Id,
+                    profile => profile.UserId,
+                    (user, profile) => profile.Id
+                )
+                .ToListAsync();
+
+            var data = await _crmUnitOfWork
+                .GetRepositoryReadOnlyAsync<CrmBankUserInfo>()
+                .QueryAll()
+                .Where(x => adminProfileIds.Contains(x.UserProfileId) && !x.IsDeleted)
+                .Select(x => new BankUserResponseDto
+                {
+                    Id = x.Id,
+                    UserProfileId = x.UserProfileId,
+                    BankCode = x.BankCode,
+                    BankName = x.BankName,
+                    AccountNo = x.AccountNo,
+                    AccountName = x.AccountName,
+                    VietQrUrl = x.VietQrUrl,
+                    QrImageUrl = x.QrImageUrl,
+                    IsActive = x.IsActived,
+                    CreatedAt = x.CreatedAt
+                })
+                .ToListAsync();
+
+            result.Data = data;
+            result.Code = ResponseStatusCode.Status200;
+
+            return result.Success(string.Format(Messages.Action.GetSuccess, "bank"));
+        }
+
         public async Task<BaseResponse<BankUserResponseDto>> CreateBankUser(long userId, string refCode, BankUserRequestDto dto)
         {
             var result = new BaseResponse<BankUserResponseDto>();
