@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using MS_Application.DataTransferObjects.Base;
 using MS_Application.DataTransferObjects.User;
@@ -43,6 +44,14 @@ namespace MS_API.Controllers
         public async Task<IActionResult> GetBankUser()
         {
             var result = await _userService.GetBankUser(UserId);
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpGet("bank-user/admin")]
+        public async Task<IActionResult> GetAdminBankUsers()
+        {
+            var result = await _userService.GetAdminBankUsers();
             return Ok(result);
         }
 
