@@ -8,11 +8,6 @@ using MS_Domain.Entities.DISTS;
 
 namespace MS_Application.Services
 {
-    /// <summary>
-    /// Lịch sử hoạt động của người dùng đã đăng nhập bên MusicEmolite - nghe bài gì/lúc nào (song_histories)
-    /// và thích bài nào (user_likes). Cả 2 bảng này đã ghi nhận sẵn từ trước (AddSongHistory/ToggleLike đều
-    /// yêu cầu đăng nhập), nên không cần thêm bảng log mới - chỉ cần gộp lại và trả ra cho màn admin.
-    /// </summary>
     public class ActivityLogService : IActivityLogService
     {
         private readonly IDistUnitOfWork _distUnitOfWork;
@@ -37,9 +32,7 @@ namespace MS_Application.Services
             var users = repoUser.Where(u => ids.Contains(u.Id)).ToList();
             var profiles = repoProfile.Where(p => ids.Contains(p.UserId)).ToList();
 
-            return users.ToDictionary(
-                u => u.Id,
-                u => profiles.FirstOrDefault(p => p.UserId == u.Id)?.FullName ?? u.Username);
+            return users.ToDictionary(u => u.Id, u => profiles.FirstOrDefault(p => p.UserId == u.Id)?.FullName ?? u.Username);
         }
 
         public async Task<BaseTableResponse<ActivityLogResponseDto>> SearchAsync(BaseSearchDto<ActivityLogSearchRequest> dto)
@@ -52,8 +45,7 @@ namespace MS_Application.Services
 
             var songs = repoSong.ToList();
 
-            var plays = repoHistory
-                .ToList()
+            var plays = repoHistory.ToList()
                 .Select(x => new ActivityLogResponseDto
                 {
                     UserId = x.UserId,
@@ -63,9 +55,7 @@ namespace MS_Application.Services
                     CreatedAt = x.PlayedAt
                 });
 
-            var likes = repoLike
-                .Where(x => !x.IsDeleted)
-                .ToList()
+            var likes = repoLike.Where(x => !x.IsDeleted).ToList()
                 .Select(x => new ActivityLogResponseDto
                 {
                     UserId = x.UserId,
@@ -91,10 +81,7 @@ namespace MS_Application.Services
             if (!string.IsNullOrWhiteSpace(keyword))
             {
                 var lowerKeyword = keyword.ToLower();
-
-                filtered = filtered.Where(x =>
-                    x.SongTitle.ToLower().Contains(lowerKeyword) ||
-                    x.UserName.ToLower().Contains(lowerKeyword));
+                filtered = filtered.Where(x => x.SongTitle.ToLower().Contains(lowerKeyword) || x.UserName.ToLower().Contains(lowerKeyword));
             }
 
             if (!string.IsNullOrWhiteSpace(dto.SearchParams?.ActionType))
@@ -114,18 +101,12 @@ namespace MS_Application.Services
                 filtered = filtered.Where(x => x.CreatedAt < toDate);
             }
 
-            filtered = dto.Asc
-                ? filtered.OrderBy(x => x.CreatedAt)
-                : filtered.OrderByDescending(x => x.CreatedAt);
+            filtered = dto.Asc ? filtered.OrderBy(x => x.CreatedAt) : filtered.OrderByDescending(x => x.CreatedAt);
 
             var materialized = filtered.ToList();
             var totalRecords = materialized.Count;
 
-            var pageItems = materialized
-                .Skip((dto.Page - 1) * dto.PageSize)
-                .Take(dto.PageSize)
-                .ToList();
-
+            var pageItems = materialized.Skip((dto.Page - 1) * dto.PageSize).Take(dto.PageSize).ToList();
             result.TotalRecords = totalRecords;
             result.TotalPages = (int)Math.Ceiling((double)totalRecords / dto.PageSize);
 

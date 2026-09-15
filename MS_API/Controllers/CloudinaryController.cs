@@ -16,8 +16,7 @@ namespace MS_API.Controllers
         }
 
         [HttpPost("upload-video")]
-        public async Task<IActionResult> UploadVideo(
-            IFormFile file)
+        public async Task<IActionResult> UploadVideo(IFormFile file)
         {
             if (file == null || file.Length == 0)
             {

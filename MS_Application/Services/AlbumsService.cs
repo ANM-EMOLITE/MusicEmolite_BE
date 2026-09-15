@@ -25,11 +25,6 @@ namespace MS_Application.Services
             _cloudinaryService = cloudinaryService;
         }
 
-        /// <summary>
-        /// DIST (albums) and CRM (users) live in separate databases, so the
-        /// creator's display name can't be joined in SQL - resolve it here
-        /// with a small in-memory lookup instead.
-        /// </summary>
         private Dictionary<long, string> ResolveUserNames(IEnumerable<long?> userIds)
         {
             var ids = userIds.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList();
@@ -90,7 +85,6 @@ namespace MS_Application.Services
             return result.Success(string.Format(Messages.Action.GetSuccess, "albums"));
         }
 
-        /// <summary>Admin-only: all albums (public or private) created by a specific user.</summary>
         public async Task<BaseTableResponse<AlbumResponseDto>> GetAlbumsByUserForAdmin(long userId, BaseSearchDto<AlbumRequestDto> dto)
         {
             var result = new BaseTableResponse<AlbumResponseDto>();
@@ -139,27 +133,19 @@ namespace MS_Application.Services
             dto.Page = dto.Page <= 0 ? 1 : dto.Page;
             dto.PageSize = dto.PageSize <= 0 ? GlobalConstants.DefaultPageSize : dto.PageSize;
 
-            var repoAlbum = _distUnitOfWork
-                .GetRepositoryReadOnlyAsync<DistAlbums>()
-                .QueryAll();
+            var repoAlbum = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistAlbums>().QueryAll();
 
-            var query = repoAlbum
-                .Where(x =>
-                    !x.IsDeleted
-                    && x.AlbumType == 1);
+            var query = repoAlbum.Where(x => !x.IsDeleted && x.AlbumType == 1);
 
             if (!string.IsNullOrWhiteSpace(dto.SearchParams.Keyword))
             {
                 var keyword = dto.SearchParams.Keyword.Trim().ToLower();
-
-                query = query.Where(x =>
-                    x.Title.ToLower().Contains(keyword));
+                query = query.Where(x =>x.Title.ToLower().Contains(keyword));
             }
 
             if (dto.SearchParams.IsActived.HasValue)
             {
-                query = query.Where(x =>
-                    x.IsActived == dto.SearchParams.IsActived.Value);
+                query = query.Where(x =>x.IsActived == dto.SearchParams.IsActived.Value);
             }
 
             query = dto.SearchParams.SortBy?.ToLower() switch
@@ -179,17 +165,14 @@ namespace MS_Application.Services
 
             var totalRecords = query.Count();
 
-            var data = query
-                .Skip(dto.Start)
-                .Take(dto.PageSize)
+            var data = query.Skip(dto.Start).Take(dto.PageSize)
                 .Select(x => new AlbumResponseDto
                 {
                     Id = x.Id,
                     Title = x.Title,
                     ReleaseDate = x.ReleaseDate,
                     ArtistId = x.ArtistId,
-                    AlbumTypeName = EnumHelper.GetDisplayName(
-                        (MS_Domain.Enums.Type)x.AlbumType),
+                    AlbumTypeName = EnumHelper.GetDisplayName((MS_Domain.Enums.Type)x.AlbumType),
                     Uri = string.IsNullOrEmpty(x.Uri) ? null : _cloudinaryService.BuildImageUrl(x.Uri),
                     IsActived = x.IsActived,
                     IsDeleted = x.IsDeleted,
@@ -209,25 +192,17 @@ namespace MS_Application.Services
             }
 
             result.TotalRecords = totalRecords;
-
-            result.TotalPages = (int)Math.Ceiling(
-                (double)totalRecords / dto.PageSize);
-
+            result.TotalPages = (int)Math.Ceiling((double)totalRecords / dto.PageSize);
             result.Data = data;
-
             result.Code = ResponseStatusCode.Status200;
 
-            return result.Success(
-                string.Format(Messages.Action.GetSuccess, "albums"));
+            return result.Success(string.Format(Messages.Action.GetSuccess, "albums"));
         }
 
         public async Task<BaseResponse<AlbumResponseDto>> GetAlbumById(long id)
         {
             var result = new BaseResponse<AlbumResponseDto>();
-
-            var album = await _distUnitOfWork.GetRepositoryReadOnlyAsync<DistAlbums>()
-                .QueryAll()
-                .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            var album = await _distUnitOfWork.GetRepositoryReadOnlyAsync<DistAlbums>().QueryAll().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
 
             if (album == null)
                 return result.Fail(string.Format(Messages.Validation.NotFound, "album"));
@@ -279,12 +254,9 @@ namespace MS_Application.Services
         public async Task<BaseResponse<AlbumResponseDto>> UpdateAlbum(long id, AlbumUpdateDto dto, long userId)
         {
             var result = new BaseResponse<AlbumResponseDto>();
-
             var repoAlbum = _distUnitOfWork.GetRepositoryAsync<DistAlbums>();
 
-            var album = await repoAlbum
-                .QueryAll()
-                .FirstOrDefaultAsync(x => x.Id == id);
+            var album = await repoAlbum.QueryAll().FirstOrDefaultAsync(x => x.Id == id);
 
             if (album == null || album.IsDeleted)
                 return result.Fail(string.Format(Messages.Validation.NotFound, "album"));
@@ -306,15 +278,17 @@ namespace MS_Application.Services
         {
             var result = new BaseResponse<bool>();
             var repoAlbum = _distUnitOfWork.GetRepositoryAsync<DistAlbums>();
-            var album = await repoAlbum
-                .QueryAll()
-                .FirstOrDefaultAsync(x => x.Id == id);
+            var album = await repoAlbum.QueryAll().FirstOrDefaultAsync(x => x.Id == id);
+
             if (album == null || album.IsDeleted)
                 return result.Fail(string.Format(Messages.Validation.NotFound, "album"));
+
             album.IsDeleted = true;
             album.UpdatedBy = userId;
+
             repoAlbum.UpdateAsync(album);
             await _distUnitOfWork.SaveChangesAsync();
+
             result.Data = true;
             result.Code = ResponseStatusCode.Status200;
             return result.Success(string.Format(Messages.Action.DeleteSuccess, "album"));

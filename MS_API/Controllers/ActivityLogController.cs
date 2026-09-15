@@ -5,10 +5,6 @@ using MS_Application.Services.Interfaces;
 
 namespace MS_API.Controllers
 {
-    /// <summary>
-    /// Lịch sử hoạt động của người dùng MusicEmolite đã đăng nhập (nghe/thích bài hát).
-    /// Dữ liệu lấy từ song_histories/user_likes đã có sẵn - không cần bảng log riêng.
-    /// </summary>
     [ApiController]
     [Route("api/activity-logs")]
     public class ActivityLogController : BaseController
