@@ -36,13 +36,9 @@ namespace MS_Application.Services
         public async Task<BaseResponse<LoginResponseDto>> LoginAsync(LoginRequestDto dto)
         {
             var result = new BaseResponse<LoginResponseDto>();
+            var repoUser = _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUser>().QueryAll();
 
-            var repoUser = _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUser>()
-                .QueryAll();
-
-            var user = repoUser.FirstOrDefault(u =>
-                u.Username == dto.UserName);
+            var user = repoUser.FirstOrDefault(u => u.Username == dto.UserName);
 
             if (user == null)
             {
@@ -50,10 +46,7 @@ namespace MS_Application.Services
                 return result.Fail("Sai tài khoản hoặc mật khẩu");
             }
 
-            var isValidPassword = HashHelper.VerifyPassword(
-                dto.Password,
-                user.PasswordHash,
-                user.PasswordSalt);
+            var isValidPassword = HashHelper.VerifyPassword(dto.Password, user.PasswordHash, user.PasswordSalt);
 
             if (!isValidPassword)
             {
@@ -88,42 +81,26 @@ namespace MS_Application.Services
             return result.Success(Messages.Login.LoginSuccess);
         }
 
-        /// <summary>
-        /// Creates or renews the session tied to this device (matched by IP + user agent),
-        /// issuing a fresh 30-day refresh token each time so an actively used session never
-        /// expires until the user explicitly logs out.
-        /// </summary>
         private async Task<string> IssueSessionAsync(long userId)
         {
-            var repoSessionRead = _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUserSession>()
-                .QueryAll();
-
-            var repoSessionWrite = _crmUnitOfWork
-                .GetRepositoryAsync<CrmUserSession>();
+            var repoSessionRead = _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserSession>().QueryAll();
+            var repoSessionWrite = _crmUnitOfWork.GetRepositoryAsync<CrmUserSession>();
 
             var httpContext = _httpContextAccessor.HttpContext;
 
-            var ipAddress =
-                httpContext?.Request.Headers["X-Forwarded-For"]
-                    .FirstOrDefault();
+            var ipAddress = httpContext?.Request.Headers["X-Forwarded-For"].FirstOrDefault();
 
             if (string.IsNullOrWhiteSpace(ipAddress))
             {
-                ipAddress =
-                    httpContext?.Connection
-                        ?.RemoteIpAddress
-                        ?.ToString();
+                ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();
             }
 
-            var userAgent =
-                httpContext?.Request.Headers["User-Agent"].ToString();
+            var userAgent = httpContext?.Request.Headers["User-Agent"].ToString();
 
             var refreshToken = Guid.NewGuid().ToString();
             var now = DateTimeHelper.VnNow;
 
-            var existingSession =
-                repoSessionRead.FirstOrDefault(x =>
+            var existingSession = repoSessionRead.FirstOrDefault(x =>
                     x.UserId == userId &&
                     x.IpAddress == ipAddress &&
                     x.UserAgent == userAgent &&
@@ -229,10 +206,7 @@ namespace MS_Application.Services
         public async Task<BaseResponse<bool>> CheckEmailExistsAsync(string email)
         {
             var result = new BaseResponse<bool>();
-
-            var repoUser = _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUser>()
-                .QueryAll();
+            var repoUser = _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUser>().QueryAll();
 
             var exists = repoUser.Any(x =>
                 x.Email != null &&
@@ -267,10 +241,7 @@ namespace MS_Application.Services
         public async Task<BaseResponse<bool>> CheckIpAddressExistsAsync(string ipAddress)
         {
             var result = new BaseResponse<bool>();
-
-            var repoSession = _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUserSession>()
-                .QueryAll();
+            var repoSession = _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserSession>().QueryAll();
 
             var exists = repoSession.Any(x =>
                 !x.IsDeleted &&

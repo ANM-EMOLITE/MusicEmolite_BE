@@ -12,7 +12,6 @@ namespace MS_Application.Services
         public async Task<BaseTableResponse<BankResponseDto>> GetBanks()
         {
             using var client = new HttpClient();
-
             var response = await client.GetFromJsonAsync<VietQrResponse>("https://api.vietqr.io/v2/banks");
 
             return new BaseTableResponse<BankResponseDto>

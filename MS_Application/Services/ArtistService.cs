@@ -21,10 +21,7 @@ namespace MS_Application.Services
         public async Task<BaseTableResponse<ArtistResponseDto>> GetArtists(BaseSearchDto<ArtistRequestDto> dto)
         {
             var result = new BaseTableResponse<ArtistResponseDto>();
-
-            var repo = _distUnitOfWork
-                .GetRepositoryReadOnlyAsync<DistArtists>()
-                .QueryAll();
+            var repo = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistArtists>().QueryAll();
 
             var query = repo.Where(x => !x.IsDeleted);
 
@@ -80,10 +77,7 @@ namespace MS_Application.Services
         public async Task<BaseResponse<ArtistResponseDto>> GetArtistById(long id)
         {
             var result = new BaseResponse<ArtistResponseDto>();
-
-            var repo = _distUnitOfWork
-                .GetRepositoryReadOnlyAsync<DistArtists>()
-                .QueryAll();
+            var repo = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistArtists>().QueryAll();
 
             var artist = repo.FirstOrDefault(x => x.Id == id && !x.IsDeleted);
 
@@ -112,9 +106,7 @@ namespace MS_Application.Services
         public async Task<BaseResponse<ArtistResponseDto>> CreateArtist(ArtistCreateDto dto, long userId)
         {
             var result = new BaseResponse<ArtistResponseDto>();
-
-            var repo = _distUnitOfWork
-                .GetRepositoryAsync<DistArtists>();
+            var repo = _distUnitOfWork.GetRepositoryAsync<DistArtists>();
 
             var entity = new DistArtists
             {
@@ -138,16 +130,13 @@ namespace MS_Application.Services
                 CreatedAt = entity.CreatedAt
             };
 
-            return result.Success(
-                string.Format(Messages.Action.CreateSuccess, "artist"));
+            return result.Success(string.Format(Messages.Action.CreateSuccess, "artist"));
         }
 
         public async Task<BaseResponse<ArtistResponseDto>> UpdateArtist(long id, ArtistUpdateDto dto, long userId)
         {
             var result = new BaseResponse<ArtistResponseDto>();
-
-            var repo = _distUnitOfWork
-                .GetRepositoryAsync<DistArtists>();
+            var repo = _distUnitOfWork.GetRepositoryAsync<DistArtists>();
 
             var artist = await repo.FindByIdAsync(id);
 
@@ -176,8 +165,7 @@ namespace MS_Application.Services
                 CreatedAt = artist.CreatedAt
             };
 
-            return result.Success(
-                string.Format(Messages.Action.UpdateSuccess, "artist"));
+            return result.Success(string.Format(Messages.Action.UpdateSuccess, "artist"));
         }
     }
 }

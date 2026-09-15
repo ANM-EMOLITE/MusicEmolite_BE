@@ -32,7 +32,6 @@ namespace MS_Application.Services
         public async Task<BaseResponse<DashboardSummaryResponseDto>> GetSummary()
         {
             var result = new BaseResponse<DashboardSummaryResponseDto>();
-
             var fromDate = DateTimeHelper.VnNow.Date.AddDays(-30);
 
             var repoSong = _distUnitOfWork
@@ -89,17 +88,9 @@ namespace MS_Application.Services
             var fromDate = DateTimeHelper.VnNow.Date.AddDays(-29);
             var toDate = DateTimeHelper.VnNow.Date;
 
-            var repoSongView = _distUnitOfWork
-                .GetRepositoryReadOnlyAsync<DistSongViews>()
-                .QueryAll();
-
-            var repoUserLike = _distUnitOfWork
-                .GetRepositoryReadOnlyAsync<DistUserLikes>()
-                .QueryAll();
-
-            var repoUser = _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUser>()
-                .QueryAll();
+            var repoSongView = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistSongViews>().QueryAll();
+            var repoUserLike = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistUserLikes>().QueryAll();
+            var repoUser = _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUser>().QueryAll();
 
             var viewStats = await repoSongView
                 .Where(x =>
