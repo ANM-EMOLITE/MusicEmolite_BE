@@ -14,6 +14,7 @@ using MS_Application.Helpers;
 using MS_Application.Services;
 using MS_Application.Services.Interfaces;
 using MS_Application.Services.Interfaces.External;
+using MS_Application.Services.SongSync;
 using MS_Infrastructure.DataAccess;
 using MS_Infrastructure.DataAccess.DISTS.Contexts;
 using System.Text;
@@ -121,6 +122,7 @@ namespace MS_API.Extensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IOtpService, OtpService>();
             services.AddScoped<JwtHelper>();
+            services.AddSingleton<SongSyncState>();
             return services;
         }
 

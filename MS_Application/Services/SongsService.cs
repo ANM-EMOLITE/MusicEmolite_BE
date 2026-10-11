@@ -100,13 +100,12 @@ namespace MS_Application.Services
 
             if (!string.IsNullOrWhiteSpace(dto.SearchParams.Keyword))
             {
-                var keyword = dto.SearchParams.Keyword
-                    .Trim()
-                    .ToLower();
+                // search_text = tên bài + ca sĩ (không dấu), có trigram index nên LIKE '%..%' vẫn nhanh
+                var pattern = TextSearchHelper.ToContainsPattern(dto.SearchParams.Keyword);
 
                 query = query.Where(x =>
-                    x.Title.ToLower().Contains(keyword)
-                    || x.Artist.Name.ToLower().Contains(keyword));
+                    x.SearchText != null
+                    && EF.Functions.Like(x.SearchText, pattern));
             }
 
             if (dto.SearchParams.AlbumId.HasValue)
@@ -444,13 +443,12 @@ namespace MS_Application.Services
 
             if (!string.IsNullOrWhiteSpace(dto.SearchParams.Keyword))
             {
-                var keyword = dto.SearchParams.Keyword
-                    .Trim()
-                    .ToLower();
+                // search_text = tên bài + ca sĩ (không dấu), có trigram index nên LIKE '%..%' vẫn nhanh
+                var pattern = TextSearchHelper.ToContainsPattern(dto.SearchParams.Keyword);
 
                 query = query.Where(x =>
-                    x.Title.ToLower().Contains(keyword)
-                    || x.Artist.Name.ToLower().Contains(keyword));
+                    x.SearchText != null
+                    && EF.Functions.Like(x.SearchText, pattern));
             }
 
             var totalRecords = query.Count();
