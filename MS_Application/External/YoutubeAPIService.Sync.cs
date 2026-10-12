@@ -29,7 +29,7 @@ public partial class YoutubeAPIService
     public async Task<YoutubeApiPageDto<YoutubeVideoDto>> GetMostPopularMusicAsync(string regionCode, string? pageToken)
     {
         return await GetPageAsync(
-            $"{YoutubeApiBase}/videos?part=snippet,contentDetails,statistics,status" +
+            $"{YoutubeApiBase}/videos?part=snippet,contentDetails,statistics,status,topicDetails" +
             $"&chart=mostPopular&videoCategoryId=10" +
             $"&regionCode={Uri.EscapeDataString(regionCode)}" +
             $"&maxResults={YoutubePageSize}" +
@@ -43,7 +43,7 @@ public partial class YoutubeAPIService
     public async Task<YoutubeApiPageDto<YoutubeVideoDto>> GetVideosByIdsAsync(IEnumerable<string> videoIds)
     {
         return await GetPageAsync(
-            $"{YoutubeApiBase}/videos?part=snippet,contentDetails,statistics,status" +
+            $"{YoutubeApiBase}/videos?part=snippet,contentDetails,statistics,status,topicDetails" +
             $"&id={string.Join(",", videoIds)}",
             ParseVideoItem);
     }
@@ -65,12 +65,12 @@ public partial class YoutubeAPIService
     }
 
     /// <summary>
-    /// Playlist "uploads" (toàn bộ video đã đăng) của tối đa 50 kênh: channelId -> playlistId.
+    /// Playlist "uploads" (toàn bộ video đã đăng) + chủ đề của tối đa 50 kênh.
     /// </summary>
     public async Task<YoutubeApiPageDto<YoutubeChannelUploadsDto>> GetUploadsPlaylistIdsAsync(IEnumerable<string> channelIds)
     {
         return await GetPageAsync(
-            $"{YoutubeApiBase}/channels?part=contentDetails" +
+            $"{YoutubeApiBase}/channels?part=contentDetails,topicDetails" +
             $"&id={string.Join(",", channelIds)}&maxResults={YoutubePageSize}",
             item =>
             {
@@ -83,7 +83,12 @@ public partial class YoutubeAPIService
 
                 return string.IsNullOrEmpty(channelId) || string.IsNullOrEmpty(uploads)
                     ? null
-                    : new YoutubeChannelUploadsDto { ChannelId = channelId, PlaylistId = uploads };
+                    : new YoutubeChannelUploadsDto
+                    {
+                        ChannelId = channelId,
+                        PlaylistId = uploads,
+                        TopicCategories = ParseTopicCategories(item)
+                    };
             });
     }
 
@@ -140,6 +145,29 @@ public partial class YoutubeAPIService
         return result;
     }
 
+    /// <summary>
+    /// topicDetails.topicCategories là URL Wikipedia ("https://en.wikipedia.org/wiki/Pop_music"),
+    /// chỉ giữ phần tên chủ đề ("Pop_music").
+    /// </summary>
+    private static List<string> ParseTopicCategories(JsonElement item)
+    {
+        var result = new List<string>();
+
+        if (!item.TryGetProperty("topicDetails", out var topicDetails)
+            || !topicDetails.TryGetProperty("topicCategories", out var categories)
+            || categories.ValueKind != JsonValueKind.Array)
+            return result;
+
+        foreach (var category in categories.EnumerateArray())
+        {
+            var url = category.GetString();
+            if (!string.IsNullOrEmpty(url))
+                result.Add(url[(url.LastIndexOf('/') + 1)..]);
+        }
+
+        return result;
+    }
+
     private static YoutubeVideoDto? ParseVideoItem(JsonElement item)
     {
         var videoId = item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String
@@ -165,7 +193,8 @@ public partial class YoutubeAPIService
             LiveBroadcastContent = snippet.TryGetProperty("liveBroadcastContent", out var live) ? live.GetString() ?? "" : "",
             ThumbnailMedium = thumbnails.ValueKind == JsonValueKind.Object ? GetThumbnailUrl(thumbnails, "medium") : "",
             ThumbnailHigh = thumbnails.ValueKind == JsonValueKind.Object ? GetThumbnailUrl(thumbnails, "high") : "",
-            ThumbnailMaxres = thumbnails.ValueKind == JsonValueKind.Object ? GetThumbnailUrl(thumbnails, "maxres") : ""
+            ThumbnailMaxres = thumbnails.ValueKind == JsonValueKind.Object ? GetThumbnailUrl(thumbnails, "maxres") : "",
+            TopicCategories = ParseTopicCategories(item)
         };
 
         if (item.TryGetProperty("contentDetails", out var contentDetails)

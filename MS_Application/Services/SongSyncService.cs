@@ -62,14 +62,29 @@ namespace MS_Application.Services
 
         private const int MinDurationSeconds = 60;
         private const int MaxDurationSeconds = 600;
-        private const int InsertBatchSize = 100;
+        private const int InsertBatchSize = 500;
         private const int LyricsChunkSize = 40;
         private const int LyricsParallelism = 8;
 
         // So khớp trên tiêu đề đã bỏ dấu + chữ thường
         private static readonly Regex NonMusicTitleRegex = new(
-            @"\b(trailer|teaser|full movie|vlog|reaction|review|podcast|gameplay|interview|behind the scenes|hau truong|phong van|livestream|episode \d+|tap \d+)\b|#shorts",
+            @"\b(trailer|teaser|full movie|vlog|reaction|review|podcast|gameplay|interview|behind the scenes|hau truong|phong van|livestream|episode \d+|tap \d+|unboxing|mukbang|prank|tutorial|huong dan|hoat hinh|phim ngan|tin tuc)\b|#shorts",
             RegexOptions.Compiled);
+
+        // Category "Music" (10) do người đăng tự chọn nên vlog/hoạt hình gắn nhầm vẫn lọt.
+        // topicDetails do Youtube tự phân loại theo nội dung -> dùng để xác nhận lại.
+        // Tên chủ đề dạng "Music", "Pop_music", "Hip_hop_music", "Jazz", "Lifestyle_(sociology)"...
+        private static readonly Regex MusicTopicRegex = new(
+            @"music|^(jazz|reggae|rhythm_and_blues)$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex NonMusicTopicRegex = new(
+            @"^(lifestyle|hobby|food|vehicle|pet|tourism|health|fashion|technology|politics|sport)(_|$)",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        // Kênh Youtube tự sinh cho nghệ sĩ ("X - Topic") và VEVO: chắc chắn là nhạc
+        private static readonly Regex TrustedMusicChannelRegex = new(
+            @"(\s-\stopic|vevo)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private static readonly Regex BracketRegex = new(
             @"\(.*?\)|\[.*?\]|【.*?】|「.*?」", RegexOptions.Compiled);
@@ -131,9 +146,9 @@ namespace MS_Application.Services
         {
             try
             {
-                var videos = await FetchVideosAsync();
+                var (videos, musicChannels) = await FetchVideosAsync();
 
-                var music = videos.Where(IsMusic).ToList();
+                var music = videos.Where(x => IsMusic(x, musicChannels)).ToList();
                 _state.Update(s => s.Filtered = videos.Count - music.Count);
 
                 var existing = await GetExistingVideoIdsAsync(music.Select(x => x.VideoId));
@@ -160,6 +175,8 @@ namespace MS_Application.Services
         {
             public required IYoutubeAPIService Youtube { get; init; }
             public ConcurrentDictionary<string, YoutubeVideoDto> Videos { get; } = new();
+            // Kênh đã được Youtube xác nhận chủ đề nhạc (channels.list topicDetails)
+            public HashSet<string> MusicChannels { get; } = new();
             public volatile bool QuotaExceeded;
 
             // true = được phép gọi tiếp; false = hết quota, dừng lấy thêm
@@ -172,7 +189,7 @@ namespace MS_Application.Services
             }
         }
 
-        private async Task<List<YoutubeVideoDto>> FetchVideosAsync()
+        private async Task<(List<YoutubeVideoDto> Videos, HashSet<string> MusicChannels)> FetchVideosAsync()
         {
             using var scope = _scopeFactory.CreateScope();
             var ctx = new FetchContext
@@ -193,7 +210,7 @@ namespace MS_Application.Services
 
             _state.Update(s => s.Detail = null);
 
-            return ctx.Videos.Values.ToList();
+            return (ctx.Videos.Values.ToList(), ctx.MusicChannels);
         }
 
         private async Task FetchChartsAsync(FetchContext ctx)
@@ -267,25 +284,45 @@ namespace MS_Application.Services
 
         private async Task FetchChannelUploadsAsync(FetchContext ctx)
         {
-            // Kênh có tổng view cao nhất trước (thường là kênh chính thức của nghệ sĩ/hãng đĩa)
-            var channelIds = ctx.Videos.Values
-                .Where(IsMusic)
+            // Kênh có tổng view cao nhất trước (thường là kênh chính thức của nghệ sĩ/hãng đĩa).
+            // Lấy dư ứng viên vì bước dưới còn loại các kênh không phải kênh nhạc.
+            var candidates = ctx.Videos.Values
+                .Where(x => PassesBasicFilter(x) && GetTopicVerdict(x.TopicCategories) != false)
                 .Where(x => !string.IsNullOrEmpty(x.ChannelId))
                 .GroupBy(x => x.ChannelId)
                 .OrderByDescending(g => g.Sum(x => x.Views))
-                .Select(g => g.Key)
-                .Take(MaxChannels)
+                .Select(g => (ChannelId: g.Key, Trusted: TrustedMusicChannelRegex.IsMatch(g.First().Channel.Trim())))
+                .Take(MaxChannels * 2)
                 .ToList();
 
-            var playlistIds = new List<string>();
+            var uploads = new Dictionary<string, YoutubeChannelUploadsDto>();
 
-            foreach (var chunk in channelIds.Chunk(YoutubeIdsPerCall))
+            foreach (var chunk in candidates.Select(x => x.ChannelId).Chunk(YoutubeIdsPerCall))
             {
                 var page = await ctx.Youtube.GetUploadsPlaylistIdsAsync(chunk);
                 if (!ctx.Check(page))
                     return;
 
-                playlistIds.AddRange(page.Items.Select(x => x.PlaylistId));
+                foreach (var item in page.Items)
+                    uploads.TryAdd(item.ChannelId, item);
+            }
+
+            // Chỉ quét kênh nhạc: kênh vlog/giải trí gắn nhầm category Music sẽ không tốn quota nữa
+            var playlistIds = new List<string>();
+
+            foreach (var (channelId, trusted) in candidates)
+            {
+                if (playlistIds.Count >= MaxChannels)
+                    break;
+
+                if (!uploads.TryGetValue(channelId, out var channel))
+                    continue;
+
+                if (!trusted && !channel.TopicCategories.Any(x => MusicTopicRegex.IsMatch(x)))
+                    continue;
+
+                ctx.MusicChannels.Add(channelId);
+                playlistIds.Add(channel.PlaylistId);
             }
 
             var ids = new ConcurrentBag<string>();
@@ -362,7 +399,30 @@ namespace MS_Application.Services
                 });
         }
 
-        private static bool IsMusic(YoutubeVideoDto video)
+        private static bool IsMusic(YoutubeVideoDto video, HashSet<string> musicChannels)
+        {
+            if (!PassesBasicFilter(video))
+                return false;
+
+            // Video chưa được Youtube gán chủ đề: chỉ nhận khi kênh chắc chắn là kênh nhạc
+            return GetTopicVerdict(video.TopicCategories)
+                ?? (musicChannels.Contains(video.ChannelId)
+                    || TrustedMusicChannelRegex.IsMatch(video.Channel.Trim()));
+        }
+
+        /// <summary>
+        /// true = chủ đề nhạc, false = không phải nhạc, null = Youtube chưa gán chủ đề.
+        /// </summary>
+        private static bool? GetTopicVerdict(List<string> topics)
+        {
+            if (topics.Count == 0)
+                return null;
+
+            return topics.Any(x => MusicTopicRegex.IsMatch(x))
+                && !topics.Any(x => NonMusicTopicRegex.IsMatch(x));
+        }
+
+        private static bool PassesBasicFilter(YoutubeVideoDto video)
         {
             if (video.CategoryId != "10")
                 return false;
