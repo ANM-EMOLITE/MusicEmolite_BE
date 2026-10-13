@@ -22,12 +22,35 @@ namespace MS_API.Controllers
         private readonly ILyricsService _lyricsService;
         private readonly IYoutubeAPIService _youtubeAPIService;
         private readonly ISongsService _songsService;
+        private readonly ISongSyncService _songSyncService;
 
-        public SongsController(ISongsService songsService, ILyricsService lyricsService, IYoutubeAPIService youtubeAPIService)
+        public SongsController(ISongsService songsService, ILyricsService lyricsService, IYoutubeAPIService youtubeAPIService, ISongSyncService songSyncService)
         {
             _songsService = songsService;
             _lyricsService = lyricsService;
             _youtubeAPIService = youtubeAPIService;
+            _songSyncService = songSyncService;
+        }
+
+        private bool IsAdmin => (User.FindFirst("RoleCode")?.Value ?? "").Contains("ADMIN");
+
+        // Bắt đầu đồng bộ nhạc Youtube (chạy nền), FE poll admin/sync/status để xem tiến độ
+        [HttpPost("admin/sync")]
+        public IActionResult StartSync()
+        {
+            if (!IsAdmin)
+                return StatusCode(StatusCodes.Status403Forbidden);
+
+            return Ok(_songSyncService.Start(UserId));
+        }
+
+        [HttpGet("admin/sync/status")]
+        public IActionResult GetSyncStatus()
+        {
+            if (!IsAdmin)
+                return StatusCode(StatusCodes.Status403Forbidden);
+
+            return Ok(_songSyncService.GetStatus());
         }
 
         [HttpPost("search")]

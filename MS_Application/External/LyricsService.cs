@@ -422,7 +422,7 @@ public class LyricsService : ILyricsService
         return true;
     }
 
-    private static List<LyricsLineDto> ParseLrc(string lrc)
+    internal static List<LyricsLineDto> ParseLrc(string lrc)
     {
         var result = new List<LyricsLineDto>();
 

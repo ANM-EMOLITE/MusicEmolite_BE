@@ -17,6 +17,9 @@ namespace MS_Application.DataTransferObjects.Youtube
         public string ChannelId { get; set; } = "";
         public string Channel { get; set; } = "";
         public string ChannelThumbnail { get; set; } = "";
+        public string CategoryId { get; set; } = "";
+        // Chủ đề Youtube tự gán cho video (topicDetails), chỉ có ở luồng đồng bộ nhạc
+        public List<string> TopicCategories { get; set; } = new();
         public DateTime? PublishedAt { get; set; }
         public bool IsLiked { get; set; }
         public long? SongId { get; set; }

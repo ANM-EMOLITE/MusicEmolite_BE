@@ -38,6 +38,11 @@ namespace MS_Domain.Entities.DISTS
         public long? PlayCount { get; set; }
         [Column("source_type")]
         public short SourceType { get; set; }
+
+        // Do trigger DB tự tính (tên bài + ca sĩ, chữ thường, không dấu) - EF không ghi cột này
+        [Column("search_text")]
+        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
+        public string? SearchText { get; set; }
         public DistArtists Artist { get; set; }
     }
 }

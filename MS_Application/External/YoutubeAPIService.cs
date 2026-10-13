@@ -13,7 +13,7 @@ using System.Xml;
 
 namespace MS_Application.External;
 
-public class YoutubeAPIService : IYoutubeAPIService
+public partial class YoutubeAPIService : IYoutubeAPIService
 {
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
