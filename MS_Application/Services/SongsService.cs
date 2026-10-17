@@ -881,7 +881,7 @@ namespace MS_Application.Services
             }
             else
             {
-                artist.Url = dto.ChannelThumbnail;
+                if (!string.IsNullOrWhiteSpace(dto.ChannelThumbnail)) artist.Url = dto.ChannelThumbnail;
                 artist.UpdatedBy = userId;
                 artist.UpdatedAt = DateTimeHelper.VnNow;
 

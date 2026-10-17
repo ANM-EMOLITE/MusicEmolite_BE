@@ -29,87 +29,44 @@ namespace MS_Application.Services
         {
             var result = new BaseTableResponse<CrmUserResponseDto>();
 
-            var repoUser = _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUser>()
-                .QueryAll();
+            var repoUser = _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUser>().QueryAll();
+            var repoProfile = _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserProfile>().QueryAll();
 
-            var repoProfile = _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUserProfile>()
-                .QueryAll();
+            var users = repoUser.Where(user => user.RoleCode == null || !user.RoleCode.Contains("ADMIN"));
+
+            if (users.Any(user => !repoProfile.Any(profile => profile.UserId == user.Id)))
+            {
+                result.Code = ResponseStatusCode.Status404;
+                return result.Fail(string.Format(Messages.Validation.NotFound, "profile"));
+            }
 
             var query =
-                from user in repoUser
-
-                join profile in repoProfile
-                    on user.Id equals profile.UserId into profiles
-
-                from profile in profiles.DefaultIfEmpty()
-
-                where user.RoleCode == null
-                      || !user.RoleCode.Contains("ADMIN")
-
+                from user in users
+                join profile in repoProfile on user.Id equals profile.UserId
                 select new CrmUserResponseDto
                 {
+                    Id = user.Id,
                     RefCode = user.RefCode,
-
                     Username = user.Username,
-
                     Email = user.Email,
-
-                    RoleCode = user.RoleCode,
-
-                    FullName = profile != null
-                        ? profile.FullName
-                        : null,
-
-                    Phone = profile != null
-                        ? profile.Phone
-                        : null,
-
-                    DateOfBirth = profile != null
-                        ? profile.DateOfBirth
-                        : null,
-
-                    Gender = profile != null
-                        ? profile.Gender
-                        : null,
-
-                    Bio = profile != null
-                        ? profile.Bio
-                        : null,
-
-                    Uri = profile != null &&
-                          !string.IsNullOrWhiteSpace(profile.Uri)
-                        ? _cloudinaryService.BuildImageUrl(profile.Uri)
-                        : null,
-
-                    IsActived = profile != null &&
-                                profile.IsActived,
-
-                    IsDeleted = profile != null &&
-                                profile.IsDeleted,
-
-                    CreatedAt = profile != null
-                        ? profile.CreatedAt
-                        : null,
-
-                    UpdatedAt = profile != null
-                        ? profile.UpdatedAt
-                        : null,
-
+                    UserType = user.UserType,
+                    FullName = profile.FullName,
+                    Phone = profile.Phone,
+                    DateOfBirth = profile.DateOfBirth,
+                    Gender = profile.Gender,
+                    Bio = profile.Bio,
+                    Uri = profile.Uri,
+                    IsActived = profile.IsActived,
+                    IsDeleted = profile.IsDeleted,
+                    CreatedAt = profile.CreatedAt,
+                    UpdatedAt = profile.UpdatedAt,
                     CreatedBy = user.CreatedBy,
-
-                    UpdatedBy = profile != null
-                        ? profile.UpdatedBy
-                        : null
+                    UpdatedBy = profile.UpdatedBy
                 };
 
             if (!string.IsNullOrWhiteSpace(dto.SearchParams?.RefCode))
             {
-                var keyword =
-                    dto.SearchParams.RefCode
-                        .Trim()
-                        .ToLower();
+                var keyword = dto.SearchParams.RefCode.Trim().ToLower();
 
                 query = query.Where(x =>
                     x.RefCode != null &&
@@ -118,9 +75,7 @@ namespace MS_Application.Services
 
             if (!string.IsNullOrWhiteSpace(dto.SearchParams?.Keyword))
             {
-                var keyword = dto.SearchParams.Keyword
-                    .Trim()
-                    .ToLower();
+                var keyword = dto.SearchParams.Keyword.Trim().ToLower();
 
                 query = query.Where(x =>
                     (x.Username != null &&
@@ -143,16 +98,10 @@ namespace MS_Application.Services
                 );
             }
 
-            if (!string.IsNullOrWhiteSpace(dto.SearchParams?.Role))
+            if (dto.SearchParams?.UserType.HasValue == true)
             {
-                var keyword =
-                    dto.SearchParams.Role
-                        .Trim()
-                        .ToLower();
-
-                query = query.Where(x =>
-                    x.RoleCode != null &&
-                    x.RoleCode.ToLower().Contains(keyword));
+                var userType = dto.SearchParams.UserType.Value;
+                query = query.Where(x => x.UserType == userType);
             }
 
             if (!string.IsNullOrWhiteSpace(dto.SearchParams?.Gender))
@@ -250,10 +199,10 @@ namespace MS_Application.Services
                             : query.OrderByDescending(x => x.Gender);
                         break;
 
-                    case "rolecode":
+                    case "usertype":
                         query = dto.Asc
-                            ? query.OrderBy(x => x.RoleCode)
-                            : query.OrderByDescending(x => x.RoleCode);
+                            ? query.OrderBy(x => x.UserType)
+                            : query.OrderByDescending(x => x.UserType);
                         break;
 
                     case "createdat":
@@ -279,26 +228,27 @@ namespace MS_Application.Services
             }
 
             var totalRecords = query.Count();
+            var totalPages = (int)Math.Ceiling((double)totalRecords / dto.PageSize);
 
             var data = query
                 .Skip(dto.Start)
                 .Take(dto.PageSize)
                 .ToList();
 
+            foreach (var item in data)
+            {
+                item.Uri = string.IsNullOrWhiteSpace(item.Uri) ? null : _cloudinaryService.BuildImageUrl(item.Uri);
+                item.UserTypeName = Enum.IsDefined(typeof(MS_Domain.Enums.UserType), (int)item.UserType)
+                    ? EnumHelper.GetDisplayName((MS_Domain.Enums.UserType)item.UserType)
+                    : null;
+            }
+
             result.TotalRecords = totalRecords;
-
-            result.TotalPages =
-                (int)Math.Ceiling(
-                    (double)totalRecords / dto.PageSize
-                );
-
+            result.TotalPages = totalPages;
             result.Data = data;
-
             result.Code = ResponseStatusCode.Status200;
 
-            return result.Success(
-                string.Format(Messages.Action.GetSuccess, "users")
-            );
+            return result.Success(string.Format(Messages.Action.GetSuccess, "users"));
         }
 
         public async Task<BaseResponse<CrmUserProfileResponseDto>> GetUserProfile(long userId)
@@ -310,6 +260,7 @@ namespace MS_Application.Services
 
             if (profile == null)
             {
+                result.Code = ResponseStatusCode.Status404;
                 return result.Fail(string.Format(Messages.Validation.NotFound, "User info"));
             }
 
@@ -392,10 +343,7 @@ namespace MS_Application.Services
         {
             var result = new BaseResponse<BankUserResponseDto>();
 
-            var profile = await _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUserProfile>()
-                .QueryAll()
-                .FirstOrDefaultAsync(x => x.UserId == userId);
+            var profile = await _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserProfile>().QueryAll().FirstOrDefaultAsync(x => x.UserId == userId);
 
             if (profile == null)
             {
@@ -476,10 +424,7 @@ namespace MS_Application.Services
             var result = new BaseResponse<BankUserResponseDto>();
 
             var repo = _crmUnitOfWork.GetRepositoryAsync<CrmBankUserInfo>();
-            var profile = await _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUserProfile>()
-                .QueryAll()
-                .FirstOrDefaultAsync(x => x.UserId == userId);
+            var profile = await _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserProfile>().QueryAll().FirstOrDefaultAsync(x => x.UserId == userId);
 
             if (profile == null)
             {
@@ -520,7 +465,6 @@ namespace MS_Application.Services
             };
 
             result.Code = ResponseStatusCode.Status200;
-
             return result.Success(string.Format(Messages.Action.CreateSuccess, "bank"));
         }
 
@@ -528,10 +472,7 @@ namespace MS_Application.Services
         {
             var result = new BaseResponse<BankUserResponseDto>();
 
-            var profile = await _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUserProfile>()
-                .QueryAll()
-                .FirstOrDefaultAsync(x => x.UserId == userId);
+            var profile = await _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserProfile>().QueryAll().FirstOrDefaultAsync(x => x.UserId == userId);
 
             if (profile == null)
             {
@@ -579,7 +520,6 @@ namespace MS_Application.Services
             };
 
             result.Code = ResponseStatusCode.Status200;
-
             return result.Success(string.Format(Messages.Action.UpdateSuccess, "bank"));
         }
 
@@ -587,10 +527,8 @@ namespace MS_Application.Services
         {
             var result = new BaseResponse<bool>();
 
-            var profile = await _crmUnitOfWork
-                .GetRepositoryReadOnlyAsync<CrmUserProfile>()
-                .QueryAll()
-                .FirstOrDefaultAsync(x => x.UserId == userId);
+            var repoBank = _crmUnitOfWork.GetRepositoryAsync<CrmBankUserInfo>();
+            var profile = await _crmUnitOfWork.GetRepositoryReadOnlyAsync<CrmUserProfile>().QueryAll().FirstOrDefaultAsync(x => x.UserId == userId);
 
             if (profile == null)
             {
@@ -598,9 +536,7 @@ namespace MS_Application.Services
                 return result.Fail(string.Format(Messages.Validation.NotFound, "profile"));
             }
 
-            var repo = _crmUnitOfWork.GetRepositoryAsync<CrmBankUserInfo>();
-
-            var entity = await repo.QueryAll()
+            var entity = await repoBank.QueryAll()
                 .FirstOrDefaultAsync(x =>
                     x.Id == id
                     && x.UserProfileId == profile.Id
@@ -608,6 +544,7 @@ namespace MS_Application.Services
 
             if (entity == null)
             {
+                result.Code = ResponseStatusCode.Status404;
                 return result.Fail(string.Format(Messages.Validation.NotFound, "bank"));
             }
 
@@ -616,7 +553,7 @@ namespace MS_Application.Services
             entity.UpdatedAt = DateTimeHelper.VnNow;
             entity.UpdatedBy = userId;
 
-            await repo.UpdateAsync(entity);
+            await repoBank.UpdateAsync(entity);
             await _crmUnitOfWork.SaveChangesAsync();
 
             result.Data = true;
