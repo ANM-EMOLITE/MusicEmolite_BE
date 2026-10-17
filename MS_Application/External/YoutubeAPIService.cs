@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using MS_Application.Constants;
@@ -5,6 +6,7 @@ using MS_Application.DataTransferObjects.Base;
 using MS_Application.DataTransferObjects.Youtube;
 using MS_Application.Repositories.Interfaces;
 using MS_Application.Services.Interfaces.External;
+using MS_Domain.Common;
 using MS_Domain.Entities.DISTS;
 using System.Collections.Concurrent;
 using System.Net;
@@ -204,6 +206,7 @@ public partial class YoutubeAPIService : IYoutubeAPIService
 
         if (pageVideos.Count > 0)
         {
+            await SaveNewVideosAsync(pageVideos, userId);
             await AttachLikeStatusAsync(pageVideos, userId);
         }
 
@@ -494,6 +497,71 @@ public partial class YoutubeAPIService : IYoutubeAPIService
         finally
         {
             foreach (var d in docsToDispose) d.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Lưu luôn các bài của trang kết quả vào DistSongs (play vẫn tự add như cũ qua AddSongHistory).
+    /// Check trùng theo YoutubeVideoId, tính cả bài đã xóa: admin xóa rồi thì không tự thêm lại (giống SongSyncService).
+    /// Bỏ qua live/upcoming vì không phải bài hát.
+    /// </summary>
+    private async Task SaveNewVideosAsync(List<YoutubeVideoDto> pageVideos, long userId)
+    {
+        var candidates = pageVideos.Where(x => !string.IsNullOrWhiteSpace(x.VideoId) && x.LiveBroadcastContent is not ("live" or "upcoming")).DistinctBy(x => x.VideoId).ToList();
+        if (candidates.Count == 0) return;
+
+        var repoSong = _distUnitOfWork.GetRepositoryAsync<DistSongs>();
+        var repoArtist = _distUnitOfWork.GetRepositoryAsync<DistArtists>();
+
+        var videoIds = candidates.Select(x => x.VideoId).ToList();
+        var existingIds = await repoSong.QueryAll().Where(x => x.YoutubeVideoId != null && videoIds.Contains(x.YoutubeVideoId)).Select(x => x.YoutubeVideoId!).ToListAsync();
+
+        var newVideos = candidates.Where(x => !existingIds.Contains(x.VideoId)).ToList();
+        if (newVideos.Count == 0) return;
+
+        try
+        {
+            // Artist = tên kênh, giống AddSongHistory / SongSyncService
+            var channels = newVideos.Where(x => !string.IsNullOrWhiteSpace(x.Channel)).GroupBy(x => x.Channel.Trim().ToLower()).ToDictionary(g => g.Key, g => g.First());
+            var keys = channels.Keys.ToList();
+
+            var artistIds = (await repoArtist.QueryCondition(x => !x.IsDeleted && keys.Contains(x.Name.ToLower())).ToListAsync())
+                .GroupBy(x => x.Name.ToLower()).ToDictionary(g => g.Key, g => g.First().Id);
+
+            var newArtists = channels.Where(x => !artistIds.ContainsKey(x.Key))
+                .Select(x => new DistArtists { Name = x.Value.Channel.Trim(), StageName = x.Value.Channel.Trim(), Url = x.Value.ChannelThumbnail, CreatedBy = userId })
+                .ToList();
+
+            if (newArtists.Count > 0)
+            {
+                await repoArtist.AddAsync(newArtists);
+                await _distUnitOfWork.SaveChangesAsync();
+                foreach (var artist in newArtists) artistIds.TryAdd(artist.Name.ToLower(), artist.Id);
+            }
+
+            var songs = newVideos.Select(video => new DistSongs
+            {
+                Title = video.Title,
+                YoutubeVideoId = video.VideoId,
+                Duration = video.Duration,
+                ImgUrl = video.ThumbnailHigh,
+                ReleaseDate = DateOnly.FromDateTime(video.PublishedAt ?? DateTimeHelper.VnNow),
+                ArtistId = artistIds.TryGetValue(video.Channel.Trim().ToLower(), out var artistId) ? artistId : null,
+                Type = 1,
+                SourceType = 3,
+                PlayCount = 0,
+                Views = 0,
+                Likes = 0,
+                CreatedBy = userId
+            }).ToList();
+
+            await repoSong.AddAsync(songs);
+            await _distUnitOfWork.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Có bài vừa được user khác search/play chen vào (vướng unique index) - bỏ qua, lần search/play sau sẽ lưu nốt.
+            // Search vẫn trả kết quả bình thường.
         }
     }
 
