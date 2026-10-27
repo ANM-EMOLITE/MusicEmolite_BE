@@ -12,7 +12,6 @@ namespace MS_Application.Services.Interfaces
     {
         Task<BaseTableResponse<AlbumResponseDto>> GetAlbums(BaseSearchDto<AlbumRequestDto> dto, long userId);
         Task<BaseTableResponse<AlbumResponseDto>> GetPublicAlbums(BaseSearchDto<AlbumRequestDto> dto);
-        Task<BaseTableResponse<AlbumResponseDto>> GetAlbumsByUserForAdmin(long userId, BaseSearchDto<AlbumRequestDto> dto);
         Task<BaseResponse<AlbumResponseDto>> GetAlbumById(long id);
         Task<BaseResponse<AlbumResponseDto>> CreateAlbum(AlbumCreateDto dto, long userId);
 

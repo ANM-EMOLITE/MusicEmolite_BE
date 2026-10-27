@@ -25,13 +25,6 @@ namespace MS_API.Controllers
             return Ok(result);
         }
 
-        [HttpPost("admin/search")]
-        public async Task<IActionResult> GetArtistsForAdmin([FromBody] BaseSearchDto<ArtistRequestDto> dto)
-        {
-            var result = await _artistsService.GetArtists(dto);
-            return Ok(result);
-        }
-
         [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetArtistById(long id)

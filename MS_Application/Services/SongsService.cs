@@ -1270,55 +1270,5 @@ namespace MS_Application.Services
             result.Code = ResponseStatusCode.Status200;
             return result.Success(true, string.Format(Messages.Action.UpdateSuccess, "album"));
         }
-
-        /// <summary>Admin-only: all songs a specific user has liked.</summary>
-        public async Task<BaseTableResponse<SongResponseDto>> GetLikedSongsByUserForAdmin(long userId, BaseSearchDto<SongRequestDto> dto)
-        {
-            var result = new BaseTableResponse<SongResponseDto>();
-
-            dto.Page = dto.Page <= 0 ? 1 : dto.Page;
-            dto.PageSize = dto.PageSize <= 0 ? GlobalConstants.DefaultPageSize : dto.PageSize;
-
-            var repoLike = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistUserLikes>().QueryAll();
-            var repoSong = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistSongs>().QueryAll();
-
-            var likedSongIds = repoLike
-                .Where(x => !x.IsDeleted && x.UserId == userId)
-                .Select(x => x.SongId)
-                .ToList();
-
-            var query = repoSong.Where(x => !x.IsDeleted && likedSongIds.Contains(x.Id));
-
-            var totalRecords = query.Count();
-
-            var data = query
-                .OrderByDescending(x => x.CreatedAt)
-                .Skip(dto.Start)
-                .Take(dto.PageSize)
-                .Select(x => new SongResponseDto
-                {
-                    Id = x.Id,
-                    Title = x.Title,
-                    Duration = x.Duration,
-                    ImgUrl = string.IsNullOrWhiteSpace(x.ImgUrl) ? null : _cloudinaryService.BuildImageUrl(x.ImgUrl),
-                    ArtistName = x.Artist != null ? x.Artist.Name : "",
-                    TypeSong = EnumHelper.GetDisplayName((MS_Domain.Enums.Type)x.Type),
-                    Views = x.Views,
-                    Likes = x.Likes,
-                    IsLiked = true,
-                    YoutubeVideoId = x.YoutubeVideoId,
-                    PlayCount = x.PlayCount,
-                    SourceType = x.SourceType,
-                    CreatedAt = x.CreatedAt
-                })
-                .ToList();
-
-            result.TotalRecords = totalRecords;
-            result.TotalPages = (int)Math.Ceiling((double)totalRecords / dto.PageSize);
-            result.Data = data;
-            result.Code = ResponseStatusCode.Status200;
-
-            return result.Success(string.Format(Messages.Action.GetSuccess, "liked songs"));
-        }
     }
 }

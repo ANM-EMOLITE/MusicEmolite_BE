@@ -85,46 +85,6 @@ namespace MS_Application.Services
             return result.Success(string.Format(Messages.Action.GetSuccess, "albums"));
         }
 
-        public async Task<BaseTableResponse<AlbumResponseDto>> GetAlbumsByUserForAdmin(long userId, BaseSearchDto<AlbumRequestDto> dto)
-        {
-            var result = new BaseTableResponse<AlbumResponseDto>();
-
-            dto.Page = dto.Page <= 0 ? 1 : dto.Page;
-            dto.PageSize = dto.PageSize <= 0 ? GlobalConstants.DefaultPageSize : dto.PageSize;
-
-            var repoAlbum = _distUnitOfWork.GetRepositoryReadOnlyAsync<DistAlbums>().QueryAll();
-
-            var query = repoAlbum.Where(x => !x.IsDeleted && x.CreatedBy == userId);
-
-            var totalRecords = query.Count();
-
-            var data = query
-                .OrderByDescending(x => x.CreatedAt)
-                .Skip(dto.Start)
-                .Take(dto.PageSize)
-                .Select(x => new AlbumResponseDto
-                {
-                    Id = x.Id,
-                    Title = x.Title,
-                    ReleaseDate = x.ReleaseDate,
-                    ArtistId = x.ArtistId,
-                    AlbumTypeName = EnumHelper.GetDisplayName((MS_Domain.Enums.Type)x.AlbumType),
-                    Uri = string.IsNullOrEmpty(x.Uri) ? null : _cloudinaryService.BuildImageUrl(x.Uri),
-                    IsActived = x.IsActived,
-                    IsDeleted = x.IsDeleted,
-                    CreatedAt = x.CreatedAt,
-                    CreatedBy = x.CreatedBy
-                })
-                .ToList();
-
-            result.TotalRecords = totalRecords;
-            result.TotalPages = (int)Math.Ceiling((double)totalRecords / dto.PageSize);
-            result.Data = data;
-            result.Code = ResponseStatusCode.Status200;
-
-            return result.Success(string.Format(Messages.Action.GetSuccess, "albums"));
-        }
-
         public async Task<BaseTableResponse<AlbumResponseDto>> GetPublicAlbums(BaseSearchDto<AlbumRequestDto> dto)
         {
             var result = new BaseTableResponse<AlbumResponseDto>();

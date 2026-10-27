@@ -32,20 +32,6 @@ namespace MS_API.Controllers
             return Ok(result);
         }
 
-        [HttpPost("admin/search")]
-        public async Task<IActionResult> GetAlbumsForAdmin([FromBody] BaseSearchDto<AlbumRequestDto> dto)
-        {
-            var result = await _albumsService.GetPublicAlbums(dto);
-            return Ok(result);
-        }
-
-        [HttpPost("admin/by-user/{userId}")]
-        public async Task<IActionResult> GetAlbumsByUserForAdmin(long userId, [FromBody] BaseSearchDto<AlbumRequestDto> dto)
-        {
-            var result = await _albumsService.GetAlbumsByUserForAdmin(userId, dto);
-            return Ok(result);
-        }
-
         [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAlbumById(long id)

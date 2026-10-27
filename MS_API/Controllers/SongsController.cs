@@ -22,35 +22,12 @@ namespace MS_API.Controllers
         private readonly ILyricsService _lyricsService;
         private readonly IYoutubeAPIService _youtubeAPIService;
         private readonly ISongsService _songsService;
-        private readonly ISongSyncService _songSyncService;
 
-        public SongsController(ISongsService songsService, ILyricsService lyricsService, IYoutubeAPIService youtubeAPIService, ISongSyncService songSyncService)
+        public SongsController(ISongsService songsService, ILyricsService lyricsService, IYoutubeAPIService youtubeAPIService)
         {
             _songsService = songsService;
             _lyricsService = lyricsService;
             _youtubeAPIService = youtubeAPIService;
-            _songSyncService = songSyncService;
-        }
-
-        private bool IsAdmin => (User.FindFirst("RoleCode")?.Value ?? "").Contains("ADMIN");
-
-        // Bắt đầu đồng bộ nhạc Youtube (chạy nền), FE poll admin/sync/status để xem tiến độ
-        [HttpPost("admin/sync")]
-        public IActionResult StartSync()
-        {
-            if (!IsAdmin)
-                return StatusCode(StatusCodes.Status403Forbidden);
-
-            return Ok(_songSyncService.Start(UserId));
-        }
-
-        [HttpGet("admin/sync/status")]
-        public IActionResult GetSyncStatus()
-        {
-            if (!IsAdmin)
-                return StatusCode(StatusCodes.Status403Forbidden);
-
-            return Ok(_songSyncService.GetStatus());
         }
 
         [HttpPost("search")]
@@ -63,14 +40,6 @@ namespace MS_API.Controllers
         [AllowAnonymous]
         [HttpPost("public/search")]
         public async Task<IActionResult> GetPublicSongs([FromBody] BaseSearchDto<SongRequestDto> dto)
-        {
-            var result = await _songsService.GetPublicSongs(dto, UserId);
-
-            return Ok(result);
-        }
-
-        [HttpPost("admin/search")]
-        public async Task<IActionResult> GetSongsForAdmin([FromBody] BaseSearchDto<SongRequestDto> dto)
         {
             var result = await _songsService.GetPublicSongs(dto, UserId);
 
@@ -140,13 +109,6 @@ namespace MS_API.Controllers
         public async Task<IActionResult> RemoveSongFromAlbum(long songId, long albumId)
         {
             var result = await _songsService.RemoveSongFromAlbum(songId, albumId, User.GetUserId());
-            return Ok(result);
-        }
-
-        [HttpPost("admin/liked-by-user/{userId}")]
-        public async Task<IActionResult> GetLikedSongsByUserForAdmin(long userId, [FromBody] BaseSearchDto<SongRequestDto> dto)
-        {
-            var result = await _songsService.GetLikedSongsByUserForAdmin(userId, dto);
             return Ok(result);
         }
 
